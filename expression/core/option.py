@@ -19,7 +19,6 @@ from .error import EffectError
 from .pipe import PipeMixin
 from .tagged_union import case, tag, tagged_union
 
-
 if TYPE_CHECKING:
     # The following imports are only used for type checking and will be lazy imported.
     from pydantic import GetCoreSchemaHandler
@@ -27,7 +26,6 @@ if TYPE_CHECKING:
 
     from expression.collections.seq import Seq
     from expression.core.result import Result
-
 
 _TSource = TypeVar("_TSource")
 _TResult = TypeVar("_TResult")
@@ -276,7 +274,8 @@ class Option(
                 raise ValueError("There is no value.")
 
     def __eq__(self, o: Any) -> bool:
-        return isinstance(o, Option) and self.tag == o.tag and getattr(self, self.tag) == getattr(o, self.tag)  # type: ignore
+        return isinstance(o, Option) and self.tag == o.tag and getattr(self, self.tag) == getattr(o,
+                                                                                                  self.tag)  # type: ignore
 
     def __iter__(self) -> Generator[_TSource, _TSource, _TSource]:
         match self:
@@ -338,6 +337,14 @@ class Option(
             ]
         )
 
+        def to_json(value: Any, handler, info):
+            if value.is_none():
+                return None
+            else:
+                schema = handler(value.value, info)
+
+                return schema
+
         return core_schema.json_or_python_schema(
             json_schema=core_schema.chain_schema(
                 [
@@ -350,7 +357,7 @@ class Option(
                 ]
             ),
             python_schema=python_schema,
-            serialization=core_schema.plain_serializer_function_ser_schema(lambda instance: instance.dict()),
+            serialization=core_schema.wrap_serializer_function_ser_schema(to_json, info_arg=True),
         )
 
 
@@ -438,8 +445,8 @@ def starmap(option: Option[tuple[Unpack[_P]]], mapper: Callable[[*_P], _TResult]
 
 
 def or_else(
-    option: Option[_TSource],
-    if_none: Option[_TSource],
+        option: Option[_TSource],
+        if_none: Option[_TSource],
 ) -> Option[_TSource]:
     """Returns option if it is Some, otherwise returns `if_none`."""
     return option.or_else(if_none)

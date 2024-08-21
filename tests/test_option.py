@@ -1,10 +1,12 @@
 from collections.abc import Callable, Generator
+from datetime import timedelta
 from typing import Any, Annotated
 
 import pytest
 from hypothesis import given  # type: ignore
 from hypothesis import strategies as st
-from pydantic import BaseModel, Field, GetCoreSchemaHandler
+from pydantic import BaseModel, Field, GetCoreSchemaHandler, SecretStr, field_serializer, PlainValidator, \
+    PlainSerializer, WithJsonSchema
 from pydantic_core import CoreSchema, core_schema
 
 from expression import (
@@ -609,6 +611,18 @@ class Username(str):
         return core_schema.no_info_after_validator_function(cls, handler(str))
 
 
+class A:
+    pass
+
+
+Pydantic_A = Annotated[
+    A,
+    PlainValidator(lambda x: A()),
+    PlainSerializer(lambda x: 'A', return_type=str),
+    WithJsonSchema({'A': 'A'}, mode='serialization'),
+]
+
+
 class Model(BaseModel):
     one: Option[int]
     two: Option[str] = Nothing
@@ -618,6 +632,7 @@ class Model(BaseModel):
 
     custom_type: Option[Username] = Nothing
     custom_type_none: Option[Username] = Nothing
+    non_json_serializable_type: Option[Pydantic_A] = Field(default='aa', validate_default=True)
 
 
 def test_parse_option_works():
@@ -640,8 +655,8 @@ def test_serialize_option_works():
     model = Model(one=Some(10))
     json = model.model_dump_json()
     assert (
-        json
-        == '{"one":10,"two":null,"three":null,"annotated_type":null,"annotated_type_none":null,"custom_type":null,"custom_type_none":null}'
+            json
+            == '{"one":10,"two":null,"three":null,"annotated_type":null,"annotated_type_none":null,"custom_type":null,"custom_type_none":null}'
     )
 
     model_ = Model.model_validate_json(json)
@@ -663,6 +678,5 @@ def test_pickle_option_works():
     load_y = pickle.loads(dump_y)
     assert x == load_x
     assert y == load_y
-
 
 #
